@@ -1,0 +1,194 @@
+
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>License Plate Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .loading-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="loading">
+        <div class="loading-content">
+            <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
+            <p class="mt-4">Processing...</p>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">License Plate Detection System 🔍</h1>
+            <p class="text-gray-600">Upload an image to detect and read license plates</p>
+        </header>
+
+        <div class="max-w-xl mx-auto bg-white rounded-lg shadow-lg p-6 mb-8">
+            <form id="uploadForm" class="space-y-4">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input type="file" id="imageInput" accept=".jpg,.jpeg,.png" class="hidden">
+                    <label for="imageInput" class="cursor-pointer">
+                        <div class="space-y-2">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div class="text-sm text-gray-600">
+                                <span class="font-medium">Click to upload</span> or drag and drop
+                            </div>
+                            <p class="text-xs text-gray-500">PNG, JPG, JPEG up to 10MB</p>
+                        </div>
+                    </label>
+                </div>
+                <button type="submit" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-200">
+                    Detect License Plates
+                </button>
+            </form>
+        </div>
+
+        <div id="results" class="hidden space-y-8">
+            <div class="max-w-4xl mx-auto">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Detection Results ✅</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-lg shadow-lg p-4">
+                        <h3 class="text-lg font-medium text-gray-800 mb-2">Processed Image</h3>
+                        <img id="processedImage" class="w-full rounded-lg" alt="Processed image">
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-4">
+                        <h3 class="text-lg font-medium text-gray-800 mb-2">License Plates</h3>
+                        <div id="licensePlates" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h3 class="text-lg font-medium text-gray-800 mb-4">Detection Details</h3>
+                    <div id="detectionDetails" class="prose"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('imageInput').files[0];
+            if (!file) {
+                alert('Please select an image first.');
+                return;
+            }
+
+            const loading = document.querySelector('.loading');
+            loading.style.display = 'block';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/detect', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayResults(data);
+                } else {
+                    alert(data.error || 'An error occurred during detection.');
+                }
+            } catch (error) {
+                alert('An error occurred during detection.');
+                console.error(error);
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            results.classList.remove('hidden');
+
+            // Display processed image
+            const processedImage = document.getElementById('processedImage');
+            processedImage.src = `data:image/jpeg;base64,${data.processed_image}`;
+
+            // Display license plates
+            const licensePlatesContainer = document.getElementById('licensePlates');
+            licensePlatesContainer.innerHTML = '';
+            data.license_plates.forEach((plate, index) => {
+                const plateDiv = document.createElement('div');
+                plateDiv.className = 'bg-gray-50 p-4 rounded-lg';
+                plateDiv.innerHTML = `
+                    <img src="data:image/jpeg;base64,${plate}" class="w-full rounded-lg mb-2" alt="License plate ${index + 1}">
+                    <p class="text-center font-medium text-gray-800">${data.texts[index]}</p>
+                `;
+                licensePlatesContainer.appendChild(plateDiv);
+            });
+
+            // Display detection details
+            const detailsContainer = document.getElementById('detectionDetails');
+            detailsContainer.innerHTML = `
+                <pre class="text-sm bg-gray-50 p-4 rounded-lg overflow-x-auto">
+${JSON.stringify(data.details, null, 2)}
+                </pre>
+            `;
+        }
+
+        // Drag and drop functionality
+        const dropZone = document.querySelector('.border-dashed');
+        const fileInput = document.getElementById('imageInput');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            dropZone.classList.add('border-blue-500');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('border-blue-500');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            fileInput.files = files;
+        }
+    </script>
+</body>
+</html>
